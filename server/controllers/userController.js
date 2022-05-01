@@ -11,7 +11,17 @@ module.exports.login = async (req, res, next) => {
     if (!isPasswordValid)
       return res.json({ msg: "Incorrect Username or Password", status: false });
     delete user.password;
-    return res.json({ status: true, user });
+    const token = user.generateAuthToken();
+    return res.json(token);
+  } catch (ex) {
+    next(ex);
+  }
+};
+
+module.exports.me = async (req, res, next) => {
+  try {
+    const user = await User.findById(req.user._id);
+    res.json(user);
   } catch (ex) {
     next(ex);
   }
@@ -33,7 +43,8 @@ module.exports.register = async (req, res, next) => {
       password: hashedPassword,
     });
     delete user.password;
-    return res.json({ status: true, user });
+    const token = user.generateAuthToken();
+    return res.json(token);
   } catch (ex) {
     next(ex);
   }

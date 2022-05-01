@@ -1,34 +1,14 @@
+const User = require("../models/userModel");
 const Messages = require("../models/messageModel");
-
-module.exports.getMessages = async (req, res, next) => {
-  try {
-    const { from, to } = req.body;
-
-    const messages = await Messages.find({
-      users: {
-        $all: [from, to],
-      },
-    }).sort({ updatedAt: 1 });
-
-    const projectedMessages = messages.map(msg => {
-      return {
-        fromSelf: msg.sender.toString() === from,
-        message: msg.message.text,
-      };
-    });
-    res.json(projectedMessages);
-  } catch (ex) {
-    next(ex);
-  }
-};
 
 module.exports.addMessage = async (req, res, next) => {
   try {
-    const { from, to, message } = req.body;
+    const { to, message } = req.body;
+    const from = await User.findById(req.user._id);
     const data = await Messages.create({
       message: { text: message },
-      users: [from, to],
-      sender: from,
+      users: [from._id, to],
+      sender: from._id,
     });
 
     if (data) return res.json({ msg: "Message added successfully." });
@@ -40,15 +20,13 @@ module.exports.addMessage = async (req, res, next) => {
 
 module.exports.deleteMessage = async (req, res, next) => {
   try {
+    const sender = await User.findById(req.user._id);
+    if (!sender) return res.json("Sender invalid");
+
     const message = await Messages.findById(req.params.id);
     if (!message)
       return res.json({ msg: "Message id is required or doest exist!" });
 
-    const { sender } = req.body;
-    if (sender != message.sender)
-      return res.json({
-        msg: "Just owner of the message can delete the message",
-      });
     await Messages.findByIdAndDelete(req.params.id);
     return res.status(200).send("Message deleted!");
   } catch (ex) {
@@ -58,9 +36,9 @@ module.exports.deleteMessage = async (req, res, next) => {
 
 module.exports.getAllMessagesFromSender = async (req, res, next) => {
   try {
-    const { senderId } = req.body;
+    const senderId = await User.findById(req.user._id);
     const messages = await Messages.find({
-      sender: [senderId],
+      sender: senderId._id,
     });
     res.json(messages);
   } catch (ex) {
@@ -70,12 +48,11 @@ module.exports.getAllMessagesFromSender = async (req, res, next) => {
 
 module.exports.getAllUnreadMessages = async (req, res, next) => {
   try {
-    const { senderId } = req.body;
+    const senderId = await User.findById(req.user._id);
     const messages = await Messages.find({
       isRead: false,
-      sender: [senderId],
+      sender: senderId._id,
     });
-    console.log(messages);
     if (messages == "")
       return res.json("All The messages readed for this user");
 
@@ -89,8 +66,8 @@ module.exports.getAllUnreadMessages = async (req, res, next) => {
 
 module.exports.getUnreadMessage = async (req, res, next) => {
   try {
-    const { from, to } = req.body;
-
+    const { to } = req.body;
+    const from = await User.findById(req.user._id);
     const message = await Messages.findOneAndUpdate(
       {
         users: [from, to],
